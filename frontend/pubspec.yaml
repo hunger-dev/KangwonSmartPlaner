@@ -1,0 +1,61 @@
+name: kangwon_sw
+description: "A new Flutter project."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  intl: ^0.19.0
+  cached_network_image: ^3.3.1
+  url_launcher: ^6.3.0
+  cupertino_icons: ^1.0.8
+  webview_flutter: ^4.13.0
+  shared_preferences: ^2.5.3
+  smooth_page_indicator: ^1.2.1
+  flutter_native_splash: ^2.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/daum_postcode.html
+    - assets/intro/intro.png
+
+flutter_native_splash:
+  # 1) 단색 배경 + 로고
+  color: "#3A0CA3"              # 네이티브 스플래시 배경색(앱과 어울리게)
+  image: assets/intro/intro.png  # 중앙 로고(투명 배경 권장)
+
+  # 2) (선택) 브랜딩 마크(하단 작은 로고)
+  # branding: assets/brand/branding.png
+
+  # Android 12는 리소스가 분리됨 (필수 권장)
+  android_12:
+    color: "#3A0CA3"
+    image: assets/intro/intro.png
+    # branding: assets/brand/branding_android12.png
+
+  # 플랫폼 선택
+  android: true
+  ios: true
+  web: false
+
+  # 배치 옵션 (중앙 정렬)
+  android_gravity: center
+  ios_content_mode: center
+
+  # (선택) 배경 이미지를 써서 '그라데이션 느낌' 내고 싶다면:
+  # background_image: assets/brand/splash_bg.png  # 단색 대신 전체 배경 이미지
+  # android_12:
+  #   background_image: assets/brand/splash_bg_android12.png
