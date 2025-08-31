@@ -1,0 +1,2 @@
+conda activate gangwon_crawler
+uvicorn app.main:app --reload --app-dir src
