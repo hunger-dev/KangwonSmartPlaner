@@ -1,14 +1,17 @@
+#%%
 import os
 import requests
+import json
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 import httpx
 import certifi
 
+
 # 환경변수에서 API 키 읽기
-GOOGLE_API_KEY = "AIzaSyDtmP9H6utavbigd5NZxrTqoe2sATsAj3A"
-OPENAI_API_KEY = "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"
+GOOGLE_API_KEY = ""
+OPENAI_API_KEY = ""
 
 class GoogleAPIError(Exception):
     pass
@@ -22,6 +25,7 @@ class Place:
     lat: float
     lng: float
     operating_hours: List[str]
+    place_id: Optional[str] = None
 
 class PlacesClient:
     def __init__(self, api_key: Optional[str] = None, language: str = "ko"):
@@ -135,6 +139,7 @@ class PlacesClient:
                             lat=lat,
                             lng=lng,
                             operating_hours=details.get("opening_hours", {}).get("weekday_text", ["정보 없음"]),
+                            place_id=pid
                         )
                     )
                 except Exception as e:
@@ -211,8 +216,8 @@ class FestPlanner:
 5) 숙소와 주차장은 고려하지 말 것(추천·배치·유형 사용 금지).
 6) 모든 시간은 KST ISO8601 형식으로 기입할 것(예: 2025-08-19T10:00:00+09:00).
 7) 장소 유형(type)은 다음 중 하나로만 사용: festival, place, cafe, restaurant.
-8) 결과는 JSON만 출력하고, 그 외 설명/텍스트는 포함하지 말 것.
-9) description에 출처와url은 포함하지 않는다.
+8) 일정이 의미적으로 중복되는 것은 피하기
+9) 결과는 JSON만 출력하고, 그 외 설명/텍스트는 포함하지 말 것.
 
 출력 스키마 예시
 {{
@@ -243,33 +248,75 @@ class FestPlanner:
         return user_prompt.strip()
 
     def suggest_plan(self) -> Any:
-        """
-        1) 주변 후보 수집
-        2) 프롬프트 생성
-        3) OpenAI responses.create 호출
-        4) output_text 또는 {"error": "..."} 반환
-        """
         try:
             if not OPENAI_API_KEY:
                 return {"error": "OPENAI_API_KEY가 설정되지 않았습니다."}
 
-            # 1) 후보 수집
             nearby_places = []
             if self.fest_location:
                 nearby_places = self.find_places_in_categories(self.travel_needs["categories"], radius_km=10)
 
-            # 2) 프롬프트 생성
             user_prompt = self.build_prompt(nearby_places=nearby_places)
 
-            # 3) OpenAI 호출 (요청하신 패턴)
             response = self.client.responses.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 tools=[{"type": "web_search_preview"}],
                 input=user_prompt
             )
-            # 4) 결과 반환
-            # SDK별 속성명이 다를 수 있으나, 요청 포맷에 맞춰 output_text 우선 시도
-            return getattr(response, "output_text", None) or str(response)
+
+            main_plan_text = getattr(response, "output_text", None) or str(response)
+
+            try:
+                main_plan = json.loads(main_plan_text)
+            except json.JSONDecodeError as e:
+                return {"error": f"OpenAI 응답 JSON 파싱 실패: {e}"}
+
+            parking_plan = self.suggest_parking()
+
+            main_itinerary = main_plan.get("itinerary", [])
+            parking_itinerary = parking_plan.get("itinerary", [])
+
+            main_itinerary.extend(parking_itinerary)
+
+            for i, item in enumerate(main_itinerary, start=1):
+                item["index"] = i
+
+            main_plan["itinerary"] = main_itinerary
+
+            main_plan["totals"]["estimated_cost_krw"] += parking_plan["totals"]["estimated_cost_krw"]
+            main_plan["totals"]["estimated_travel_time_minutes"] += parking_plan["totals"]["estimated_travel_time_minutes"]
+
+            return main_plan
 
         except Exception as e:
-            return {"error": f"OpenAI API 호출 실패: {str(e)}"}
+            return {"error": f"계획 생성 중 오류 발생: {str(e)}"}
+
+    def suggest_parking(self) -> Any:
+        nearby_places = []
+        if self.fest_location:
+            nearby_places = self.find_places_in_categories(["공영주차장"], radius_km=1.5)
+            first_3_places = nearby_places[:3] # 처음 3개만 선택
+            return self.create_itinerary(first_3_places)
+
+    def create_itinerary(self, places: List[Any]):
+        itinerary = []
+        for index, place in enumerate(places, start=1):
+            item = {
+                "index": index,
+                "type": place.category[0] if place.category else "place",
+                "title": place.name,
+                "start_time": "2025-08-20T00:00:00+09:00",
+                "end_time": "2025-08-20T00:00:00+09:00",
+                "description": f"주소: {place.address}",
+            }
+            itinerary.append(item)
+
+        final_json = {
+            "itinerary": itinerary,
+            "totals": {
+                "estimated_cost_krw": 0,
+                "estimated_travel_time_minutes": 0
+            }
+        }
+        return final_json
+
