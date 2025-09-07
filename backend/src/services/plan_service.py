@@ -126,7 +126,7 @@ def process_plan_sync(payload: ItineraryRequest) -> dict:
         "categories": cmd.options.categories,
         "budget": cmd.options.budget,  # 원본 함수는 budget 있으면 사용
     }
-
+    print("********")
     planner = FestPlanner(
         fest_title=fest_title,
         fest_location_text=fest_location_text,
@@ -135,27 +135,27 @@ def process_plan_sync(payload: ItineraryRequest) -> dict:
     raw = planner.suggest_plan()
     parsed = _parse_model_output(raw)
     itinerary = _normalize_itinerary(parsed.get("itinerary") or [])
+    
+    # # 4) 추천 결과 저장
+    # if itinerary:
+    #     with SessionLocal() as db:  # type: Session
+    #         save_plan_items(db, plan_id, itinerary)
 
-    # 4) 추천 결과 저장
-    if itinerary:
-        with SessionLocal() as db:  # type: Session
-            save_plan_items(db, plan_id, itinerary)
+    # parking_addresses = [
+    # "강원특별자치도 양구군 양구읍 박수근로 366-27",
+    # "강원특별자치도 양구군 양구읍 박수근로 366-33",
+    # "강원특별자치도 양구군 양구읍 박수근로365번길 20-2",
+    # ]
 
-    parking_addresses = [
-    "강원특별자치도 양구군 양구읍 박수근로 366-27",
-    "강원특별자치도 양구군 양구읍 박수근로 366-33",
-    "강원특별자치도 양구군 양구읍 박수근로365번길 20-2",
-    ]
+    # # 축제명(타이틀)과 일정 시작일을 사용해 parking 아이템 생성
+    # parking_items = _make_parking_items(
+    #     parking_addresses,
+    #     cmd.schedule.start_at_kst,          # 시작일(aware datetime)
+    #     fest_title                          # 주차 타이틀은 축제명으로
+    # )
 
-    # 축제명(타이틀)과 일정 시작일을 사용해 parking 아이템 생성
-    parking_items = _make_parking_items(
-        parking_addresses,
-        cmd.schedule.start_at_kst,          # 시작일(aware datetime)
-        fest_title                          # 주차 타이틀은 축제명으로
-    )
-
-    # 메인 + 주차 머지 후 재인덱싱
-    itinerary = _merge_and_reindex(itinerary, parking_items)
+    # # 메인 + 주차 머지 후 재인덱싱
+    # itinerary = _merge_and_reindex(itinerary, parking_items)
 
     # 5) 응답
     return {
